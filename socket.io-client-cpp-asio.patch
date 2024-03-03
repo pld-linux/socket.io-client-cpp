@@ -1,0 +1,24 @@
+Asio doesn't provide cmake config files nor Findasio.cmake file.
+rapidjson cmake config doesn't provide rapidjson target stub.
+--- socket.io-client-cpp-3.1.0/CMakeLists.txt.orig	2024-03-03 09:36:11.233930073 +0100
++++ socket.io-client-cpp-3.1.0/CMakeLists.txt	2024-03-03 09:42:55.898404484 +0100
+@@ -60,9 +60,8 @@ if(USE_SUBMODULES)
+     )
+ else()
+     find_package(websocketpp CONFIG REQUIRED)
+-    find_package(asio CONFIG REQUIRED)
+     find_package(RapidJSON CONFIG REQUIRED)
+-    target_link_libraries(sioclient PRIVATE websocketpp::websocketpp asio asio::asio rapidjson)
++    target_link_libraries(sioclient PRIVATE websocketpp::websocketpp)
+ endif()
+ 
+ target_include_directories(sioclient 
+@@ -103,7 +102,7 @@ if(OPENSSL_FOUND)
+ 
+     target_link_libraries(sioclient_tls PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+     if (NOT USE_SUBMODULES) 
+-        target_link_libraries(sioclient_tls PRIVATE websocketpp::websocketpp asio asio::asio rapidjson)
++        target_link_libraries(sioclient_tls PRIVATE websocketpp::websocketpp)
+     endif()
+ 
+     target_compile_definitions(sioclient_tls PRIVATE -DSIO_TLS)

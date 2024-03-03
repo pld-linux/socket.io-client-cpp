@@ -2,13 +2,14 @@ Summary:	Socket.IO C++ Client library
 Summary(pl.UTF-8):	Biblioteka kliencka Socket.IO dla C++
 Name:		socket.io-client-cpp
 Version:	3.1.0
-Release:	2
+Release:	3
 License:	MIT
 Group:		Libraries
 #Source0Download: https://github.com/socketio/socket.io-client-cpp/releases
 Source0:	https://github.com/socketio/socket.io-client-cpp/archive/%{version}/socket.io-client-cpp-%{version}.tar.gz
 # Source0-md5:	942f8b519ec411cde08772f3cf83dd1e
 Patch0:		socket.io-client-cpp-git.patch
+Patch1:		socket.io-client-cpp-asio.patch
 URL:		https://github.com/socketio/socket.io-client-cpp
 BuildRequires:	asio-devel
 BuildRequires:	cmake >= 2.8
@@ -53,11 +54,14 @@ Pliki nagłówkowe biblioteki klienta Socket.IO dla C++.
 %prep
 %setup -q -n socket.io-client-cpp-%{version}
 %patch0 -p1
+%patch1 -p1
 
 %build
 install -d build
 cd build
-%cmake ..
+%cmake .. \
+	-DBUILD_TESTING=OFF \
+	-DUSE_SUBMODULES=OFF
 
 %{__make}
 
