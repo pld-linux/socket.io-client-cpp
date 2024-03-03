@@ -2,13 +2,13 @@ Summary:	Socket.IO C++ Client library
 Summary(pl.UTF-8):	Biblioteka kliencka Socket.IO dla C++
 Name:		socket.io-client-cpp
 Version:	3.1.0
-Release:	1
+Release:	2
 License:	MIT
 Group:		Libraries
 #Source0Download: https://github.com/socketio/socket.io-client-cpp/releases
 Source0:	https://github.com/socketio/socket.io-client-cpp/archive/%{version}/socket.io-client-cpp-%{version}.tar.gz
 # Source0-md5:	942f8b519ec411cde08772f3cf83dd1e
-Patch0:		socket.io-client-cpp-pld.patch
+Patch0:		socket.io-client-cpp-git.patch
 URL:		https://github.com/socketio/socket.io-client-cpp
 BuildRequires:	asio-devel
 BuildRequires:	cmake >= 2.8
@@ -80,9 +80,9 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc CHANGELOG.md LICENSE README.md
 %attr(755,root,root) %{_libdir}/libsioclient.so.*.*.*
-%attr(755,root,root) %ghost %{_libdir}/libsioclient.so.1
+%attr(755,root,root) %ghost %{_libdir}/libsioclient.so.3
 %attr(755,root,root) %{_libdir}/libsioclient_tls.so.*.*.*
-%attr(755,root,root) %ghost %{_libdir}/libsioclient_tls.so.1
+%attr(755,root,root) %ghost %{_libdir}/libsioclient_tls.so.3
 
 %files devel
 %defattr(644,root,root,755)
@@ -92,4 +92,5 @@ rm -rf $RPM_BUILD_ROOT
 %{_includedir}/sio_client.h
 %{_includedir}/sio_message.h
 %{_includedir}/sio_socket.h
+%{_libdir}/cmake/sioclient
 %{_examplesdir}/%{name}-%{version}

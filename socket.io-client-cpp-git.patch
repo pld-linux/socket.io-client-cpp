@@ -1,0 +1,1212 @@
+diff -Nur socket.io-client-cpp-3.1.0/API.md socket.io-client-cpp-master/API.md
+--- socket.io-client-cpp-3.1.0/API.md	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/API.md	2024-02-14 19:48:21.000000000 +0100
+@@ -21,7 +21,7 @@
+ #### Event Emitter
+ `void emit(std::string const& name, message::list const& msglist, std::function<void (message::ptr const&)> const& ack)`
+ 
+-Universal event emition interface, by applying implicit conversion magic, it is backward compatible with all previous `emit` interfaces.
++Universal event emission interface, by applying implicit conversion magic, it is backward compatible with all previous `emit` interfaces.
+ 
+ #### Event Bindings
+ `void on(std::string const& event_name,event_listener const& func)`
+@@ -140,7 +140,7 @@
+ 
+ `void sync_close()`
+ 
+-Close the client, return until it is really closed.
++Close the client, don't return until it is really closed.
+ 
+ `bool opened() const`
+ 
+diff -Nur socket.io-client-cpp-3.1.0/CHANGELOG.md socket.io-client-cpp-master/CHANGELOG.md
+--- socket.io-client-cpp-3.1.0/CHANGELOG.md	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/CHANGELOG.md	2024-02-14 19:48:21.000000000 +0100
+@@ -1,3 +1,18 @@
++# [2.1.0](https://github.com/socketio/socket.io-client-cpp/compare/2.0.0...2.1.0) (2021-10-12)
++
++
++### Bug Fixes
++
++* fix ASIO_STANDALONE release build trying to use boost::random ([#301](https://github.com/socketio/socket.io-client-cpp/issues/301)) ([168ce9d](https://github.com/socketio/socket.io-client-cpp/commit/168ce9d10b4ac667c43fe16b4cf530f6a3749235))
++* fix LOG call syntax ([#301](https://github.com/socketio/socket.io-client-cpp/issues/301)) ([c09221f](https://github.com/socketio/socket.io-client-cpp/commit/c09221f357effe1a5a0fc0e7d7902eba1ab0484d))
++
++
++### Features
++
++* support TLSv1.2 and newer ([#321](https://github.com/socketio/socket.io-client-cpp/issues/321)) ([7c60ba9](https://github.com/socketio/socket.io-client-cpp/commit/7c60ba9d1e5e58de57f127025bcf69f4baecd2b4))
++
++
++
+ # [3.1.0](https://github.com/socketio/socket.io-client-cpp/compare/3.0.0...3.1.0) (2021-10-12)
+ 
+ 
+diff -Nur socket.io-client-cpp-3.1.0/CMakeLists.txt socket.io-client-cpp-master/CMakeLists.txt
+--- socket.io-client-cpp-3.1.0/CMakeLists.txt	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/CMakeLists.txt	2024-02-14 19:48:21.000000000 +0100
+@@ -1,101 +1,176 @@
+-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+-PROJECT(sioclient)
++cmake_minimum_required(VERSION 3.12...3.27 FATAL_ERROR)
+ 
+-option(BUILD_SHARED_LIBS "Build the shared library" OFF)
+-option(BUILD_UNIT_TESTS  "Builds unit tests target" OFF)
++PROJECT(sioclient
++    VERSION 3.1.0
++)
+ 
+-set(MAJOR 1)
+-set(MINOR 6)
+-set(PATCH 0)
+-
+-if(NOT CMAKE_BUILD_TYPE )
+-MESSAGE(STATUS "not define build type, set to release" )
+-set(CMAKE_BUILD_TYPE Release )
+-elseif(NOT (${CMAKE_BUILD_TYPE} STREQUAL "Release" OR ${CMAKE_BUILD_TYPE} STREQUAL "Debug" ))
+-MESSAGE(SEND_ERROR "CMAKE_BUILD_TYPE must be either Release or Debug")
+-return()
+-endif()
+-
+-aux_source_directory(${CMAKE_CURRENT_LIST_DIR}/src ALL_SRC)
+-aux_source_directory(${CMAKE_CURRENT_LIST_DIR}/src/internal ALL_SRC)
+-file(GLOB ALL_HEADERS ${CMAKE_CURRENT_LIST_DIR}/src/*.h )
+-set(SIO_INCLUDEDIR ${CMAKE_CURRENT_LIST_DIR})
++option(BUILD_SHARED_LIBS "Build the shared library" OFF)
++option(BUILD_UNIT_TESTS "Builds unit tests target" OFF)
++option(USE_SUBMODULES "Use source in local submodules instead of system libraries" ON)
++option(DISABLE_LOGGING "Do not print logging messages" OFF)
++
++if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
++    set(DEFAULT_BUILD_TYPE "Release")
++    message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
++    set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE STRING "Choose the type of build." FORCE)
++
++    # Set the possible values of build type for cmake-gui
++    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
++endif()
++
++# Only do these if this is the main project, and not if it is included through add_subdirectory
++if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
++    # Testing only available if this is the main app
++    # Note this needs to be done in the main CMakeLists
++    # since it calls enable_testing, which must be in the
++    # main CMakeLists.
++    include(CTest)
++endif()
+ 
+ add_definitions(
+     # These will force ASIO to compile without Boost
+     -DBOOST_DATE_TIME_NO_LIB
+     -DBOOST_REGEX_NO_LIB
+     -DASIO_STANDALONE
+-    # These will force WebsocketPP to compile with C++11
++
++    # These will force sioclient to compile with C++11
+     -D_WEBSOCKETPP_CPP11_STL_
+     -D_WEBSOCKETPP_CPP11_FUNCTIONAL_
++    -D_WEBSOCKETPP_CPP11_TYPE_TRAITS_
++    -D_WEBSOCKETPP_CPP11_CHRONO_
+ )
+ 
++if (DISABLE_LOGGING)
++    add_definitions(-DSIO_DISABLE_LOGGING)
++endif()
++
++set(ALL_SRC 
++    "src/sio_client.cpp"
++    "src/sio_socket.cpp"
++    "src/internal/sio_client_impl.cpp"
++    "src/internal/sio_packet.cpp"
++)
+ add_library(sioclient ${ALL_SRC})
+-target_include_directories(sioclient PRIVATE 
+-    ${CMAKE_CURRENT_LIST_DIR}/src 
+-    ${CMAKE_CURRENT_LIST_DIR}/lib/websocketpp 
+-    ${CMAKE_CURRENT_LIST_DIR}/lib/rapidjson/include
+-    ${CMAKE_CURRENT_LIST_DIR}/lib/asio/asio/include
++
++if(USE_SUBMODULES)
++    set(MODULE_INCLUDE_DIRS
++        ${CMAKE_CURRENT_LIST_DIR}/lib/websocketpp
++        ${CMAKE_CURRENT_LIST_DIR}/lib/rapidjson/include
++        ${CMAKE_CURRENT_LIST_DIR}/lib/asio/asio/include
++    )
++else()
++    find_package(websocketpp CONFIG REQUIRED)
++    find_package(asio CONFIG REQUIRED)
++    find_package(RapidJSON CONFIG REQUIRED)
++    target_link_libraries(sioclient PRIVATE websocketpp::websocketpp asio asio::asio rapidjson)
++endif()
++
++target_include_directories(sioclient 
++    PUBLIC
++    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
++    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
++    PRIVATE
++    ${MODULE_INCLUDE_DIRS}
+ )
+ 
+-if (CMAKE_VERSION VERSION_GREATER "3.1")
+ set_property(TARGET sioclient PROPERTY CXX_STANDARD 11)
+ set_property(TARGET sioclient PROPERTY CXX_STANDARD_REQUIRED ON)
+-else()
+-set_property(TARGET sioclient APPEND_STRING PROPERTY COMPILE_FLAGS "-std=c++11")
+-endif()
++
+ if(BUILD_SHARED_LIBS)
+-set_target_properties(sioclient
+-	PROPERTIES
+-		SOVERSION ${MAJOR}
+-		VERSION ${MAJOR}.${MINOR}.${PATCH}
+-	)
++    set_target_properties(sioclient
++        PROPERTIES
++        SOVERSION ${PROJECT_VERSION_MAJOR}
++        VERSION ${PROJECT_VERSION}
++    )
+ endif()
++
+ list(APPEND TARGET_LIBRARIES sioclient)
+ 
+ find_package(OpenSSL)
++
+ if(OPENSSL_FOUND)
+-add_library(sioclient_tls ${ALL_SRC})
+-target_include_directories(sioclient_tls PRIVATE
+-    ${CMAKE_CURRENT_LIST_DIR}/src 
+-    ${CMAKE_CURRENT_LIST_DIR}/lib/websocketpp 
+-    ${CMAKE_CURRENT_LIST_DIR}/lib/rapidjson/include
+-    ${CMAKE_CURRENT_LIST_DIR}/lib/asio/asio/include
+-    ${OPENSSL_INCLUDE_DIR}
+-)
++    add_library(sioclient_tls ${ALL_SRC})
++    target_include_directories(sioclient_tls PUBLIC
++        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
++        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
++        PRIVATE
++        ${MODULE_INCLUDE_DIRS}
++        ${OPENSSL_INCLUDE_DIR}
++    )
++
++    set_property(TARGET sioclient_tls PROPERTY CXX_STANDARD 11)
++    set_property(TARGET sioclient_tls PROPERTY CXX_STANDARD_REQUIRED ON)
++
++    target_link_libraries(sioclient_tls PRIVATE OpenSSL::SSL OpenSSL::Crypto)
++    if (NOT USE_SUBMODULES) 
++        target_link_libraries(sioclient_tls PRIVATE websocketpp::websocketpp asio asio::asio rapidjson)
++    endif()
++
++    target_compile_definitions(sioclient_tls PRIVATE -DSIO_TLS)
++
++    if(BUILD_SHARED_LIBS)
++        set_target_properties(sioclient_tls
++            PROPERTIES
++            SOVERSION ${PROJECT_VERSION_MAJOR}
++            VERSION ${PROJECT_VERSION}
++        )
++    endif()
+ 
+-if (CMAKE_VERSION VERSION_GREATER "3.1")
+-set_property(TARGET sioclient_tls PROPERTY CXX_STANDARD 11)
+-set_property(TARGET sioclient_tls PROPERTY CXX_STANDARD_REQUIRED ON)
+-target_link_libraries(sioclient_tls PRIVATE ${OPENSSL_LIBRARIES} )
+-else()
+-set_property(TARGET sioclient_tls APPEND_STRING PROPERTY COMPILE_FLAGS "-std=c++11")
+-endif()
+-target_compile_definitions(sioclient_tls PRIVATE -DSIO_TLS)
+-if(BUILD_SHARED_LIBS)
+-set_target_properties(sioclient_tls
+-	PROPERTIES
+-		SOVERSION ${MAJOR}
+-		VERSION ${MAJOR}.${MINOR}.${PATCH}
+-	)
++    list(APPEND TARGET_LIBRARIES sioclient_tls)
+ endif()
+-list(APPEND TARGET_LIBRARIES sioclient_tls)
+ 
+-endif()
++export(PACKAGE sioclient)
+ 
+ include(GNUInstallDirs)
+ 
+-install(FILES ${ALL_HEADERS} 
++file(GLOB ALL_HEADERS ${CMAKE_CURRENT_LIST_DIR}/src/*.h)
++install(FILES ${ALL_HEADERS}
+     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+ )
+ 
+-install(TARGETS ${TARGET_LIBRARIES}
+-    DESTINATION ${CMAKE_INSTALL_LIBDIR}
++install(TARGETS ${TARGET_LIBRARIES} EXPORT sioclientTargets
++    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
++    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
++    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
++)
++
++# === generate a CMake Config File ===
++include(CMakePackageConfigHelpers)
++set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/sioclient)
++string(REGEX REPLACE "([^;]+)" "find_dependency(\\1)" _find_dependency_calls "${_package_dependencies}")
++string(REPLACE ";" "\n" _find_dependency_calls "${_find_dependency_calls}")
++
++write_basic_package_version_file(
++    "${CMAKE_CURRENT_BINARY_DIR}/sioclient/sioclientConfigVersion.cmake"
++    VERSION ${sioclient_VERSION}
++    COMPATIBILITY AnyNewerVersion
++)
++
++export(EXPORT sioclientTargets
++    FILE "${CMAKE_CURRENT_BINARY_DIR}/sioclient/sioclientTargets.cmake"
++    NAMESPACE sioclient::
++)
++
++configure_package_config_file(sioclientConfig.cmake.in
++    "${CMAKE_CURRENT_BINARY_DIR}/sioclient/sioclientConfig.cmake"
++    INSTALL_DESTINATION "${ConfigPackageLocation}"
++)
++
++install(EXPORT sioclientTargets
++    NAMESPACE
++    sioclient::
++    DESTINATION
++    ${ConfigPackageLocation}
++)
++install(
++    FILES
++    "${CMAKE_CURRENT_BINARY_DIR}/sioclient/sioclientConfig.cmake"
++    "${CMAKE_CURRENT_BINARY_DIR}/sioclient/sioclientConfigVersion.cmake"
++    "${CMAKE_CURRENT_BINARY_DIR}/sioclient/sioclientTargets.cmake"
++    DESTINATION
++    ${ConfigPackageLocation}
+ )
+ 
+-if(BUILD_UNIT_TESTS)
+-message(STATUS "Building with unit test support.")
+-enable_testing()
+-add_subdirectory(test)
++if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING) OR BUILD_UNIT_TESTS)
++    add_subdirectory(test)
+ endif()
+diff -Nur socket.io-client-cpp-3.1.0/examples/QT/README.md socket.io-client-cpp-master/examples/QT/README.md
+--- socket.io-client-cpp-3.1.0/examples/QT/README.md	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/examples/QT/README.md	2024-02-14 19:48:21.000000000 +0100
+@@ -65,23 +65,6 @@
+ `no_keywords` is for preventing qmake treat some function's name `emit` as the keyword of signal-slot mechanism.
+ `c++11` ask for C++11 support.
+ 
+-##Import boost
+-Suppose we now have our boost `headers` and a fat boost `static lib` named `libboost.a`(non-win32) or `boost.lib`(win32) ready.
+-
+-To import them we need to edit `SioChatDemo.pro` again,add header include:
+-
+-```bash
+-INCLUDEPATH += `our boost headers folder`
+-```
+-
+-also linker options:
+-
+-```bash
+-win32:CONFIG(release, debug|release): LIBS += -L`our Win32 boost static lib folder` -lboost
+-else:win32:CONFIG(debug, debug|release): LIBS += -L`our Win32 boost static lib folder` -lboost
+-else:unix: LIBS += -L`our osx boost static lib folder` -lboost
+-```
+-
+ ### Make up mainwindow ui.
+ Make up a simple ui by drag and drop widget from `Widget box` in left side.
+ 
+diff -Nur socket.io-client-cpp-3.1.0/.gitignore socket.io-client-cpp-master/.gitignore
+--- socket.io-client-cpp-3.1.0/.gitignore	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/.gitignore	2024-02-14 19:48:21.000000000 +0100
+@@ -7,3 +7,5 @@
+ cmake_install.cmake
+ install_manifest.txt
+ libsioclient.a
++.DS_Store
++.cache/
+\ Brak znaku nowej linii na koñcu pliku
+diff -Nur socket.io-client-cpp-3.1.0/.gitmodules socket.io-client-cpp-master/.gitmodules
+--- socket.io-client-cpp-3.1.0/.gitmodules	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/.gitmodules	2024-02-14 19:48:21.000000000 +0100
+@@ -7,6 +7,3 @@
+ [submodule "lib/asio"]
+ 	path = lib/asio
+ 	url = https://github.com/chriskohlhoff/asio.git
+-[submodule "lib/catch"]
+-	path = lib/catch
+-	url = https://github.com/philsquared/Catch.git
+diff -Nur socket.io-client-cpp-3.1.0/INSTALL_IOS.md socket.io-client-cpp-master/INSTALL_IOS.md
+--- socket.io-client-cpp-3.1.0/INSTALL_IOS.md	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/INSTALL_IOS.md	2024-02-14 19:48:21.000000000 +0100
+@@ -1,12 +1,6 @@
+ ## iOS
+ 
+-### Option 1: Cocoapods
+-
+-```
+-pod 'SocketIO-Client-CPP'
+-```
+-
+-### Option 2: Create a static library
++### Option 1: Create a static library
+ 
+ 1. Create a static library
+ 1. Copy the header files into xcode
+@@ -26,7 +20,7 @@
+ ```
+ 
+ 
+-### Option 3: Manual integration
++### Option 2: Manual integration
+ 
+ Use this [shell](https://gist.github.com/melode11/a90114a2abf009ca22ea) to download and build boost completely automattically. It installs boost to `<shell folder>/prefix`.
+ 
+diff -Nur socket.io-client-cpp-3.1.0/INSTALL.md socket.io-client-cpp-master/INSTALL.md
+--- socket.io-client-cpp-3.1.0/INSTALL.md	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/INSTALL.md	2024-02-14 19:48:21.000000000 +0100
+@@ -10,4 +10,19 @@
+ 1. Use `git clone --recurse-submodules https://github.com/socketio/socket.io-client-cpp.git` to clone your local repo.
+ 2. Add `./lib/asio/asio/include`, `./lib/websocketpp` and `./lib/rapidjson/include` to headers search path.
+ 3. Include all files under `./src` in your project, add `sio_client.cpp`,`sio_socket.cpp`,`internal/sio_client_impl.cpp`, `internal/sio_packet.cpp` to source list.
+-4. Include `sio_client.h` in your client code where you want to use it.
++4. Add `BOOST_DATE_TIME_NO_LIB`, `BOOST_REGEX_NO_LIB`, `ASIO_STANDALONE`, `_WEBSOCKETPP_CPP11_STL_` and `_WEBSOCKETPP_CPP11_FUNCTIONAL_` to the preprocessor definitions
++5. Include `sio_client.h` in your client code where you want to use it.
++
++### With vcpkg
++
++You can download and install the Socket.IO C++ client using the [vcpkg](https://github.com/Microsoft/vcpkg) dependency manager:
++
++```bash
++git clone https://github.com/Microsoft/vcpkg.git
++cd vcpkg
++./bootstrap-vcpkg.sh
++./vcpkg integrate install
++vcpkg install socket-io-client
++```
++
++The Socket.IO client port in vcpkg is kept up to date by Microsoft team members and community contributors. If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
+diff -Nur socket.io-client-cpp-3.1.0/README.md socket.io-client-cpp-master/README.md
+--- socket.io-client-cpp-3.1.0/README.md	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/README.md	2024-02-14 19:48:21.000000000 +0100
+@@ -44,6 +44,7 @@
+ 
+ * [With CMAKE](./INSTALL.md#with-cmake)
+ * [Without CMAKE](./INSTALL.md#without-cmake)
++* [With VCPKG](./INSTALL.md#with-vcpkg)
+ * [iOS and OS X](./INSTALL_IOS.md)
+  * Option 1: Cocoapods
+  * Option 2: Create a static library
+diff -Nur socket.io-client-cpp-3.1.0/sioclientConfig.cmake.in socket.io-client-cpp-master/sioclientConfig.cmake.in
+--- socket.io-client-cpp-3.1.0/sioclientConfig.cmake.in	1970-01-01 01:00:00.000000000 +0100
++++ socket.io-client-cpp-master/sioclientConfig.cmake.in	2024-02-14 19:48:21.000000000 +0100
+@@ -0,0 +1,7 @@
++
++@PACKAGE_INIT@
++
++include(CMakeFindDependencyMacro)
++@_find_dependency_calls@
++
++include("${CMAKE_CURRENT_LIST_DIR}/sioclientTargets.cmake")
+\ Brak znaku nowej linii na koñcu pliku
+Binarne pliki socket.io-client-cpp-3.1.0/src/internal/.DS_Store i socket.io-client-cpp-master/src/internal/.DS_Store ró¿ni± siê
+diff -Nur socket.io-client-cpp-3.1.0/src/internal/sio_client_impl.cpp socket.io-client-cpp-master/src/internal/sio_client_impl.cpp
+--- socket.io-client-cpp-3.1.0/src/internal/sio_client_impl.cpp	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/internal/sio_client_impl.cpp	2024-02-14 19:48:21.000000000 +0100
+@@ -13,7 +13,7 @@
+ #include <mutex>
+ #include <cmath>
+ // Comment this out to disable handshake logging to stdout
+-#if DEBUG || _DEBUG
++#if (DEBUG || _DEBUG) && !defined(SIO_DISABLE_LOGGING)
+ #define LOG(x) std::cout << x
+ #else
+ #define LOG(x)
+@@ -31,7 +31,7 @@
+ namespace sio
+ {
+     /*************************public:*************************/
+-    client_impl::client_impl() :
++    client_impl::client_impl(client_options const& options) :
+         m_ping_interval(0),
+         m_ping_timeout(0),
+         m_network_thread(),
+@@ -47,7 +47,11 @@
+         m_client.set_access_channels(alevel::connect|alevel::disconnect|alevel::app);
+ #endif
+         // Initialize the Asio transport policy
+-        m_client.init_asio();
++        if (options.io_context != nullptr) {
++            m_client.init_asio(options.io_context);
++        } else {
++            m_client.init_asio();
++        }
+ 
+         // Bind the clients we are using
+         using std::placeholders::_1;
+@@ -69,8 +73,15 @@
+         this->sockets_invoke_void(&sio::socket::on_close);
+         sync_close();
+     }
++	
++    void client_impl::set_proxy_basic_auth(const std::string& uri, const std::string& username, const std::string& password)
++    {
++        m_proxy_base_url = uri;
++        m_proxy_basic_username = username;
++        m_proxy_basic_password = password;
++    }
+     
+-    void client_impl::connect(const string& uri, const map<string,string>& query, const map<string, string>& headers)
++    void client_impl::connect(const string& uri, const map<string,string>& query, const map<string, string>& headers, const message::ptr& auth)
+     {
+         if(m_reconn_timer)
+         {
+@@ -108,8 +119,10 @@
+         m_query_string=move(query_str);
+ 
+         m_http_headers = headers;
++        m_auth = auth;
+ 
+         this->reset_states();
++        m_abort_retries = false;
+         m_client.get_io_service().dispatch(std::bind(&client_impl::connect_impl,this,uri,m_query_string));
+         m_network_thread.reset(new thread(std::bind(&client_impl::run_loop,this)));//uri lifecycle?
+ 
+@@ -140,7 +153,7 @@
+         }
+         else
+         {
+-            pair<const string, socket::ptr> p(aux,shared_ptr<sio::socket>(new sio::socket(this,aux)));
++            pair<const string, socket::ptr> p(aux,shared_ptr<sio::socket>(new sio::socket(this,aux,m_auth)));
+             return (m_sockets.insert(p).first)->second;
+         }
+     }
+@@ -148,6 +161,7 @@
+     void client_impl::close()
+     {
+         m_con_state = con_closing;
++        m_abort_retries = true;
+         this->sockets_invoke_void(&sio::socket::close);
+         m_client.get_io_service().dispatch(std::bind(&client_impl::close_impl, this,close::status::normal,"End by user"));
+     }
+@@ -155,6 +169,7 @@
+     void client_impl::sync_close()
+     {
+         m_con_state = con_closing;
++        m_abort_retries = true;
+         this->sockets_invoke_void(&sio::socket::close);
+         m_client.get_io_service().dispatch(std::bind(&client_impl::close_impl, this,close::status::normal,"End by user"));
+         if(m_network_thread)
+@@ -259,6 +274,23 @@
+             for( auto&& header: m_http_headers ) {
+                 con->replace_header(header.first, header.second);
+             }
++			
++            if (!m_proxy_base_url.empty()) {
++                con->set_proxy(m_proxy_base_url, ec);
++                if (ec) {
++                    m_client.get_alog().write(websocketpp::log::alevel::app,
++                                    "Set Proxy Error: " + ec.message());
++                    break;
++                }
++                if (!m_proxy_basic_username.empty()) {
++                    con->set_proxy_basic_auth(m_proxy_basic_username, m_proxy_basic_password, ec);
++                    if (ec) {
++                        m_client.get_alog().write(websocketpp::log::alevel::app,
++                                    "Set Proxy Basic Auth Error: " + ec.message());
++                        break;
++                    }
++                }
++            }
+ 
+             m_client.connect(con);
+             return;
+@@ -302,37 +334,14 @@
+         }
+     }
+ 
+-    void client_impl::ping(const asio::error_code& ec)
+-    {
+-        if(ec || m_con.expired())
+-        {
+-            if (ec != asio::error::operation_aborted)
+-                LOG("ping exit,con is expired?"<<m_con.expired()<<",ec:"<<ec.message()<<endl);
+-            return;
+-        }
+-        packet p(packet::frame_ping);
+-        m_packet_mgr.encode(p, [&](bool /*isBin*/,shared_ptr<const string> payload)
+-        {
+-            lib::error_code ec;
+-            this->m_client.send(this->m_con, *payload, frame::opcode::text, ec);
+-        });
+-        if(!m_ping_timeout_timer)
+-        {
+-            m_ping_timeout_timer.reset(new asio::steady_timer(m_client.get_io_service()));
+-            std::error_code timeout_ec;
+-            m_ping_timeout_timer->expires_from_now(milliseconds(m_ping_timeout), timeout_ec);
+-            m_ping_timeout_timer->async_wait(std::bind(&client_impl::timeout_pong, this, std::placeholders::_1));
+-        }
+-    }
+-
+-    void client_impl::timeout_pong(const asio::error_code &ec)
++    void client_impl::timeout_ping(const asio::error_code &ec)
+     {
+         if(ec)
+         {
+             return;
+         }
+-        LOG("Pong timeout"<<endl);
+-        m_client.get_io_service().dispatch(std::bind(&client_impl::close_impl, this,close::status::policy_violation,"Pong timeout"));
++        LOG("Ping timeout"<<endl);
++        m_client.get_io_service().dispatch(std::bind(&client_impl::close_impl, this,close::status::policy_violation,"Ping timeout"));
+     }
+ 
+     void client_impl::timeout_reconnect(asio::error_code const& ec)
+@@ -397,7 +406,7 @@
+         m_con_state = con_closed;
+         this->sockets_invoke_void(&sio::socket::on_disconnect);
+         LOG("Connection failed." << endl);
+-        if(m_reconn_made<m_reconn_attempts)
++        if(m_reconn_made<m_reconn_attempts && !m_abort_retries)
+         {
+             LOG("Reconnect for attempt:"<<m_reconn_made<<endl);
+             unsigned delay = this->next_delay();
+@@ -461,7 +470,7 @@
+         else
+         {
+             this->sockets_invoke_void(&sio::socket::on_disconnect);
+-            if(m_reconn_made<m_reconn_attempts)
++            if(m_reconn_made<m_reconn_attempts && !m_abort_retries)
+             {
+                 LOG("Reconnect for attempt:"<<m_reconn_made<<endl);
+                 unsigned delay = this->next_delay();
+@@ -483,11 +492,6 @@
+     
+     void client_impl::on_message(connection_hdl, client_type::message_ptr msg)
+     {
+-        if (m_ping_timeout_timer) {
+-            asio::error_code ec;
+-            m_ping_timeout_timer->expires_from_now(milliseconds(m_ping_timeout),ec);
+-            m_ping_timeout_timer->async_wait(std::bind(&client_impl::timeout_pong, this, std::placeholders::_1));
+-        }
+         // Parse the incoming message according to socket.IO rules
+         m_packet_mgr.put_payload(msg->get_payload());
+     }
+@@ -524,6 +528,9 @@
+                 m_ping_timeout = 60000;
+             }
+ 
++            // Start ping timeout
++            update_ping_timeout_timer();
++
+             return;
+         }
+ failed:
+@@ -533,17 +540,15 @@
+ 
+     void client_impl::on_ping()
+     {
++        // Reply with pong packet.
+         packet p(packet::frame_pong);
+         m_packet_mgr.encode(p, [&](bool /*isBin*/,shared_ptr<const string> payload)
+         {
+             this->m_client.send(this->m_con, *payload, frame::opcode::text);
+         });
+ 
+-        if(m_ping_timeout_timer)
+-        {
+-            m_ping_timeout_timer->cancel();
+-            m_ping_timeout_timer.reset();
+-        }
++        // Reset the ping timeout.
++        update_ping_timeout_timer();
+     }
+ 
+     void client_impl::on_decode(packet const& p)
+@@ -552,6 +557,19 @@
+         {
+         case packet::frame_message:
+         {
++	    // Special event for sid sync
++            if (p.get_type() == packet::type_connect) {
++                auto message = p.get_message();
++                if (message && message->get_flag() == message::flag_object)
++                {
++                    const object_message* obj_ptr = static_cast<object_message*>(message.get());
++                    const std::map<std::string, message::ptr>* values = &(obj_ptr->get_map());
++                    auto it = values->find("sid");
++                    if (it != values->end()) {
++                        m_sid = std::static_pointer_cast<string_message>(it->second)->get_string();
++                    }
++                }
++            }
+             socket::ptr so_ptr = get_socket_locked(p.get_nsp());
+             if(so_ptr)so_ptr->on_message_packet(p);
+             break;
+@@ -588,6 +606,16 @@
+             m_ping_timeout_timer.reset();
+         }
+     }
++
++    void client_impl::update_ping_timeout_timer() {
++        if (!m_ping_timeout_timer) {
++            m_ping_timeout_timer = std::unique_ptr<asio::steady_timer>(new asio::steady_timer(get_io_service()));
++        }
++
++        asio::error_code ec;
++        m_ping_timeout_timer->expires_from_now(milliseconds(m_ping_interval + m_ping_timeout), ec);
++        m_ping_timeout_timer->async_wait(std::bind(&client_impl::timeout_ping, this, std::placeholders::_1));
++    }
+     
+     void client_impl::reset_states()
+     {
+diff -Nur socket.io-client-cpp-3.1.0/src/internal/sio_client_impl.h socket.io-client-cpp-master/src/internal/sio_client_impl.h
+--- socket.io-client-cpp-3.1.0/src/internal/sio_client_impl.h	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/internal/sio_client_impl.h	2024-02-14 19:48:21.000000000 +0100
+@@ -38,6 +38,7 @@
+ #include <asio/error_code.hpp>
+ #include <asio/io_service.hpp>
+ 
++#include <atomic>
+ #include <memory>
+ #include <map>
+ #include <thread>
+@@ -61,7 +62,7 @@
+             con_closed
+         };
+         
+-        client_impl();
++        client_impl(client_options const& options);
+         
+         ~client_impl();
+         
+@@ -104,7 +105,7 @@
+         
+         // Client Functions - such as send, etc.
+         void connect(const std::string& uri, const std::map<std::string, std::string>& queryString,
+-                     const std::map<std::string, std::string>& httpExtraHeaders);
++                     const std::map<std::string, std::string>& httpExtraHeaders, const message::ptr& auth);
+         
+         sio::socket::ptr const& socket(const std::string& nsp);
+         
+@@ -128,6 +129,8 @@
+         void set_logs_quiet();
+ 
+         void set_logs_verbose();
++		
++        void set_proxy_basic_auth(const std::string& uri, const std::string& username, const std::string& password);
+ 
+     protected:
+         void send(packet& p);
+@@ -151,7 +154,7 @@
+         
+         void ping(const asio::error_code& ec);
+         
+-        void timeout_pong(const asio::error_code& ec);
++        void timeout_ping(const asio::error_code& ec);
+ 
+         void timeout_reconnect(asio::error_code const& ec);
+ 
+@@ -181,6 +184,8 @@
+         void reset_states();
+ 
+         void clear_timers();
++
++        void update_ping_timeout_timer();
+         
+         #if SIO_TLS
+         typedef websocketpp::lib::shared_ptr<asio::ssl::context> context_ptr;
+@@ -199,6 +204,10 @@
+         std::string m_base_url;
+         std::string m_query_string;
+         std::map<std::string, std::string> m_http_headers;
++        message::ptr m_auth;
++        std::string m_proxy_base_url;
++        std::string m_proxy_basic_username;
++        std::string m_proxy_basic_password;
+ 
+         unsigned int m_ping_interval;
+         unsigned int m_ping_timeout;
+@@ -233,7 +242,9 @@
+         unsigned m_reconn_attempts;
+ 
+         unsigned m_reconn_made;
+-        
++
++        std::atomic<bool> m_abort_retries { false };
++
+         friend class sio::client;
+         friend class sio::socket;
+     };
+diff -Nur socket.io-client-cpp-3.1.0/src/sio_client.cpp socket.io-client-cpp-master/src/sio_client.cpp
+--- socket.io-client-cpp-3.1.0/src/sio_client.cpp	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/sio_client.cpp	2024-02-14 19:48:21.000000000 +0100
+@@ -12,8 +12,10 @@
+ 
+ namespace sio
+ {
+-    client::client():
+-        m_impl(new client_impl())
++    client::client() : m_impl(new client_impl({})) {}
++    
++    client::client(client_options const& options):
++        m_impl(new client_impl(options))
+     {
+     }
+     
+@@ -66,21 +68,42 @@
+     {
+         m_impl->clear_socket_listeners();
+     }
++	
++    void client::set_proxy_basic_auth(const std::string& uri, const std::string& username, const std::string& password)
++    {
++        m_impl->set_proxy_basic_auth(uri, username, password);
++    }
+ 
+     void client::connect(const std::string& uri)
+     {
+-        m_impl->connect(uri, {}, {});
++        m_impl->connect(uri, {}, {}, {});
++    }
++
++    void client::connect(const std::string& uri, const message::ptr& auth)
++    {
++        m_impl->connect(uri, {}, {}, auth);
+     }
+ 
+     void client::connect(const std::string& uri, const std::map<string,string>& query)
+     {
+-        m_impl->connect(uri, query, {});
++        m_impl->connect(uri, query, {}, {});
++    }
++
++    void client::connect(const std::string& uri, const std::map<string,string>& query, const message::ptr& auth)
++    {
++        m_impl->connect(uri, query, {}, auth);
+     }
+ 
+     void client::connect(const std::string& uri, const std::map<std::string,std::string>& query,
+                          const std::map<std::string,std::string>& http_extra_headers)
+     {
+-        m_impl->connect(uri, query, http_extra_headers);
++        m_impl->connect(uri, query, http_extra_headers, {});
++    }
++
++    void client::connect(const std::string& uri, const std::map<std::string,std::string>& query,
++                         const std::map<std::string,std::string>& http_extra_headers, const message::ptr& auth)
++    {
++        m_impl->connect(uri, query, http_extra_headers, auth);
+     }
+     
+     socket::ptr const& client::socket(const std::string& nsp)
+diff -Nur socket.io-client-cpp-3.1.0/src/sio_client.h socket.io-client-cpp-master/src/sio_client.h
+--- socket.io-client-cpp-3.1.0/src/sio_client.h	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/sio_client.h	2024-02-14 19:48:21.000000000 +0100
+@@ -11,9 +11,17 @@
+ #include "sio_message.h"
+ #include "sio_socket.h"
+ 
++namespace asio {
++    class io_context;
++}
++
+ namespace sio
+ {
+     class client_impl;
++
++    struct client_options {
++        asio::io_context* io_context = nullptr;
++    };
+     
+     class client {
+     public:
+@@ -32,6 +40,7 @@
+         typedef std::function<void(std::string const& nsp)> socket_listener;
+         
+         client();
++        client(client_options const& options);
+         ~client();
+         
+         //set listeners and event bindings.
+@@ -56,11 +65,18 @@
+         // Client Functions - such as send, etc.
+         void connect(const std::string& uri);
+ 
++        void connect(const std::string& uri, const message::ptr& auth);
++
+         void connect(const std::string& uri, const std::map<std::string,std::string>& query);
+ 
++        void connect(const std::string& uri, const std::map<std::string,std::string>& query, const message::ptr& auth);
++
+         void connect(const std::string& uri, const std::map<std::string,std::string>& query,
+                      const std::map<std::string,std::string>& http_extra_headers);
+ 
++        void connect(const std::string& uri, const std::map<std::string,std::string>& query,
++                     const std::map<std::string,std::string>& http_extra_headers, const message::ptr& auth);
++
+         void set_reconnect_attempts(int attempts);
+ 
+         void set_reconnect_delay(unsigned millis);
+@@ -80,6 +96,8 @@
+         
+         void sync_close();
+         
++        void set_proxy_basic_auth(const std::string& uri, const std::string& username, const std::string& password);
++		
+         bool opened() const;
+         
+         std::string const& get_sessionid() const;
+diff -Nur socket.io-client-cpp-3.1.0/src/sio_message.h socket.io-client-cpp-master/src/sio_message.h
+--- socket.io-client-cpp-3.1.0/src/sio_message.h	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/sio_message.h	2024-02-14 19:48:21.000000000 +0100
+@@ -204,7 +204,7 @@
+         }
+ 
+         string_message(std::string&& v)
+-            :message(flag_string),_v(move(v))
++            :message(flag_string),_v(std::move(v))
+         {
+         }
+     public:
+@@ -215,7 +215,7 @@
+ 
+         static message::ptr create(std::string&& v)
+         {
+-            return ptr(new string_message(move(v)));
++            return ptr(new string_message(std::move(v)));
+         }
+ 
+         std::string const& get_string() const
+@@ -269,7 +269,7 @@
+ 
+         void push(std::string&& text)
+         {
+-            _v.push_back(string_message::create(move(text)));
++            _v.push_back(string_message::create(std::move(text)));
+         }
+ 
+         void push(std::shared_ptr<std::string> const& binary)
+@@ -296,7 +296,7 @@
+ 
+         void insert(size_t pos,std::string&& text)
+         {
+-            _v.insert(_v.begin()+pos, string_message::create(move(text)));
++            _v.insert(_v.begin()+pos, string_message::create(std::move(text)));
+         }
+ 
+         void insert(size_t pos,std::shared_ptr<std::string> const& binary)
+@@ -361,7 +361,7 @@
+ 
+         void insert(const std::string & key,std::string&& text)
+         {
+-            _v[key] = string_message::create(move(text));
++            _v[key] = string_message::create(std::move(text));
+         }
+ 
+         void insert(const std::string & key,std::shared_ptr<std::string> const& binary)
+@@ -461,7 +461,7 @@
+ 
+         list(std::string&& text)
+         {
+-            m_vector.push_back(string_message::create(move(text)));
++            m_vector.push_back(string_message::create(std::move(text)));
+         }
+ 
+         list(std::shared_ptr<std::string> const& binary)
+@@ -489,7 +489,7 @@
+ 
+         void push(std::string&& text)
+         {
+-            m_vector.push_back(string_message::create(move(text)));
++            m_vector.push_back(string_message::create(std::move(text)));
+         }
+ 
+         void push(std::shared_ptr<std::string> const& binary)
+@@ -516,7 +516,7 @@
+ 
+         void insert(size_t pos,std::string&& text)
+         {
+-            m_vector.insert(m_vector.begin()+pos, string_message::create(move(text)));
++            m_vector.insert(m_vector.begin()+pos, string_message::create(std::move(text)));
+         }
+ 
+         void insert(size_t pos,std::shared_ptr<std::string> const& binary)
+diff -Nur socket.io-client-cpp-3.1.0/src/sio_socket.cpp socket.io-client-cpp-master/src/sio_socket.cpp
+--- socket.io-client-cpp-3.1.0/src/sio_socket.cpp	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/sio_socket.cpp	2024-02-14 19:48:21.000000000 +0100
+@@ -8,7 +8,7 @@
+ #include <cstdarg>
+ #include <functional>
+ 
+-#if DEBUG || _DEBUG
++#if (DEBUG || _DEBUG) && !defined(SIO_DISABLE_LOGGING)
+ #define LOG(x) std::cout << x
+ #else
+ #define LOG(x)
+@@ -108,13 +108,17 @@
+     {
+     public:
+         
+-        impl(client_impl *,std::string const&);
++        impl(client_impl *, std::string const&, message::ptr const&);
+         ~impl();
+         
+         void on(std::string const& event_name,event_listener_aux const& func);
+         
+         void on(std::string const& event_name,event_listener const& func);
+         
++        void on_any(event_listener_aux const& func);
++
++        void on_any(event_listener const& func);
++
+         void off(std::string const& event_name);
+         
+         void off_all();
+@@ -173,11 +177,14 @@
+         
+         bool m_connected;
+         std::string m_nsp;
++        message::ptr m_auth;
+         
+         std::map<unsigned int, std::function<void (message::list const&)> > m_acks;
+         
+         std::map<std::string, event_listener> m_event_binding;
+         
++        event_listener m_event_listener;
++
+         error_listener m_error_listener;
+         
+         std::unique_ptr<asio::steady_timer> m_connection_timer;
+@@ -202,6 +209,16 @@
+         m_event_binding[event_name] = func;
+     }
+     
++    void socket::impl::on_any(event_listener_aux const& func)
++    {
++        m_event_listener = event_adapter::do_adapt(func);
++    }
++    
++    void socket::impl::on_any(event_listener const& func)
++    {
++        m_event_listener = func;
++    }
++
+     void socket::impl::off(std::string const& event_name)
+     {
+         std::lock_guard<std::mutex> guard(m_event_mutex);
+@@ -228,10 +245,11 @@
+         m_error_listener = nullptr;
+     }
+     
+-    socket::impl::impl(client_impl *client,std::string const& nsp):
++    socket::impl::impl(client_impl *client, std::string const& nsp, message::ptr const& auth):
+         m_client(client),
+         m_connected(false),
+-        m_nsp(nsp)
++        m_nsp(nsp),
++        m_auth(auth)
+     {
+         NULL_GUARD(client);
+         if(m_client->opened())
+@@ -269,7 +287,7 @@
+     void socket::impl::send_connect()
+     {
+         NULL_GUARD(m_client);
+-        packet p(packet::type_connect,m_nsp);
++        packet p(packet::type_connect, m_nsp, m_auth);
+         m_client->send(p);
+         m_connection_timer.reset(new asio::steady_timer(m_client->get_io_service()));
+         asio::error_code ec;
+@@ -441,6 +459,7 @@
+         event ev = event_adapter::create_event(nsp,name, std::move(message),needAck);
+         event_listener func = this->get_bind_listener_locked(name);
+         if(func)func(ev);
++        if (m_event_listener) m_event_listener(ev);
+         if(needAck)
+         {
+             this->ack(msgId, name, ev.get_ack_message());
+@@ -523,8 +542,8 @@
+         return socket::event_listener();
+     }
+     
+-    socket::socket(client_impl* client,std::string const& nsp):
+-        m_impl(new impl(client,nsp))
++    socket::socket(client_impl* client,std::string const& nsp,message::ptr const& auth):
++        m_impl(new impl(client,nsp,auth))
+     {
+     }
+     
+@@ -543,6 +562,16 @@
+         m_impl->on(event_name, func);
+     }
+     
++    void socket::on_any(event_listener_aux const& func)
++    {
++        m_impl->on_any(func);
++    }
++    
++    void socket::on_any(event_listener const& func)
++    {
++        m_impl->on_any(func);
++    }
++
+     void socket::off(std::string const& event_name)
+     {
+         m_impl->off(event_name);
+diff -Nur socket.io-client-cpp-3.1.0/src/sio_socket.h socket.io-client-cpp-master/src/sio_socket.h
+--- socket.io-client-cpp-3.1.0/src/sio_socket.h	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/src/sio_socket.h	2024-02-14 19:48:21.000000000 +0100
+@@ -62,6 +62,10 @@
+         
+         void off(std::string const& event_name);
+         
++        void on_any(event_listener const& func);
++
++        void on_any(event_listener_aux const& func);
++
+         void off_all();
+         
+         void close();
+@@ -75,7 +79,7 @@
+         std::string const& get_namespace() const;
+         
+     protected:
+-        socket(client_impl*,std::string const&);
++        socket(client_impl*,std::string const&,message::ptr const&);
+ 
+         void on_connected();
+         
+diff -Nur socket.io-client-cpp-3.1.0/test/CMakeLists.txt socket.io-client-cpp-master/test/CMakeLists.txt
+--- socket.io-client-cpp-3.1.0/test/CMakeLists.txt	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/test/CMakeLists.txt	2024-02-14 19:48:21.000000000 +0100
+@@ -1,9 +1,14 @@
++include(FetchContent)
++
++FetchContent_Declare(
++  Catch2
++  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
++  GIT_TAG        v3.3.2
++)
++FetchContent_MakeAvailable(Catch2)
++
+ add_executable(sio_test sio_test.cpp)
+ set_property(TARGET sio_test PROPERTY CXX_STANDARD 11)
+ set_property(TARGET sio_test PROPERTY CXX_STANDARD_REQUIRED ON)
+-target_link_libraries(sio_test sioclient)
+-target_include_directories(sio_test PRIVATE
+-    "${CMAKE_CURRENT_SOURCE_DIR}/../lib/catch/include"
+-    "${CMAKE_CURRENT_SOURCE_DIR}/../src"
+-)
++target_link_libraries(sio_test PRIVATE Catch2::Catch2WithMain sioclient)
+ add_test(sioclient_test sio_test)
+diff -Nur socket.io-client-cpp-3.1.0/test/echo_server/package-lock.json socket.io-client-cpp-master/test/echo_server/package-lock.json
+--- socket.io-client-cpp-3.1.0/test/echo_server/package-lock.json	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/test/echo_server/package-lock.json	2024-02-14 19:48:21.000000000 +0100
+@@ -142,9 +142,9 @@
+             "integrity": "sha512-2wo4EXgxOGSFueqvHAdnmi5JLZzWqMArjuP4nqC26AtLh5PoCPsaRbRdah2xhcwTAMooZfjYiNVNkkmmSMaxOQ=="
+         },
+         "socket.io-parser": {
+-            "version": "4.0.3",
+-            "resolved": "https://registry.npmjs.org/socket.io-parser/-/socket.io-parser-4.0.3.tgz",
+-            "integrity": "sha512-m4ybFiP4UYVORRt7jcdqf8UWx+ywVdAqqsJyruXxAdD3Sv6MDemijWij34mOWdMJ55bEdIb9jACBhxUgNK6sxw==",
++            "version": "4.0.5",
++            "resolved": "https://registry.npmjs.org/socket.io-parser/-/socket.io-parser-4.0.5.tgz",
++            "integrity": "sha512-sNjbT9dX63nqUFIOv95tTVm6elyIU4RvB1m8dOeZt+IgWwcWklFDOdmGcfo3zSiRsnR/3pJkjY5lfoGqEe4Eig==",
+             "requires": {
+                 "@types/component-emitter": "^1.2.10",
+                 "component-emitter": "~1.3.0",
+@@ -157,9 +157,9 @@
+             "integrity": "sha1-IpnwLG3tMNSllhsLn3RSShj2NPw="
+         },
+         "ws": {
+-            "version": "7.4.2",
+-            "resolved": "https://registry.npmjs.org/ws/-/ws-7.4.2.tgz",
+-            "integrity": "sha512-T4tewALS3+qsrpGI/8dqNMLIVdq/g/85U98HPMa6F0m6xTbvhXU6RCQLqPH3+SlomNV/LdY6RXEbBpMH6EOJnA=="
++            "version": "7.4.6",
++            "resolved": "https://registry.npmjs.org/ws/-/ws-7.4.6.tgz",
++            "integrity": "sha512-YmhHDO4MzaDLB+M9ym/mDA5z0naX8j7SIlT8f8z+I0VtzsRbekxEutHSme7NPS2qE8StCYQNUnfWdXta/Yu85A=="
+         }
+     }
+ }
+diff -Nur socket.io-client-cpp-3.1.0/test/sio_test.cpp socket.io-client-cpp-master/test/sio_test.cpp
+--- socket.io-client-cpp-3.1.0/test/sio_test.cpp	2021-10-12 10:24:29.000000000 +0200
++++ socket.io-client-cpp-master/test/sio_test.cpp	2024-02-14 19:48:21.000000000 +0100
+@@ -10,8 +10,7 @@
+ #include <iostream>
+ #include <thread>
+ 
+-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
+-#include "catch.hpp"
++#include <catch2/catch_test_macros.hpp>
+ 
+ #ifndef _WIN32
+ #include "json.hpp" //nlohmann::json cannot build in MSVC
+@@ -55,7 +54,7 @@
+     p.accept(payload,buffers);
+     CHECK(buffers.size() == 0);
+     CHECK(payload == "40/nsp");
+-    INFO("outputing payload:" << payload)
++    INFO("outputing payload:" << payload);
+ }
+ 
+ TEST_CASE( "test_packet_accept_2" )
+@@ -66,7 +65,7 @@
+     p.accept(payload,buffers);
+     CHECK(buffers.size() == 0);
+     CHECK(payload == "2");
+-    INFO("outputing payload:" << payload)
++    INFO("outputing payload:" << payload);
+ }
+ 
+ TEST_CASE( "test_packet_accept_3" )
+@@ -81,7 +80,7 @@
+     CHECK(p.get_type() == packet::type_ack);
+     CHECK(buffers.size() == 0);
+     CHECK(payload == "43/nsp,1001[\"event\",\"text\"]");
+-    INFO("outputing payload:" << payload)
++    INFO("outputing payload:" << payload);
+ }
+ 
+ #ifndef _WIN32
+@@ -106,26 +105,26 @@
+     REQUIRE(json_start!=std::string::npos);
+     std::string header = payload.substr(0,json_start);
+     CHECK(header=="452-/nsp,1001");
+-    INFO("outputing payload:" << payload)
++    INFO("outputing payload:" << payload);
+     std::string json = payload.substr(json_start);
+     nlohmann::json j = nlohmann::json::parse(json);
+     CHECK(j["desc"].get<std::string>() == "Bin of 100 bytes");
+-    INFO("outputing payload desc::" << j["desc"].get<std::string>())
++    INFO("outputing payload desc::" << j["desc"].get<std::string>());
+     CHECK((bool)j["bin1"]["_placeholder"]);
+-    INFO("outputing payload bin1:" << j["bin1"].dump())
++    INFO("outputing payload bin1:" << j["bin1"].dump());
+     CHECK((bool)j["bin2"]["_placeholder"]);
+-    INFO("outputing payload bin2:" << j["bin2"].dump())
++    INFO("outputing payload bin2:" << j["bin2"].dump());
+     int bin1Num = j["bin1"]["num"].get<int>();
+     char numchar[] = {0,0};
+     numchar[0] = bin1Num+'0';
+     CHECK(buffers[bin1Num]->length()==100);
+-    INFO("outputing payload bin1 num:" << numchar)
++    INFO("outputing payload bin1 num:" << numchar);
+     CHECK(buffers[bin1Num]->at(50)==0);
+     CHECK(buffers[bin1Num]->at(0) == 0);
+     int bin2Num = j["bin2"]["num"].get<int>();
+     numchar[0] = bin2Num+'0';
+     CHECK(buffers[bin2Num]->length()==50);
+-    INFO("outputing payload bin2 num:" << numchar)
++    INFO("outputing payload bin2 num:" << numchar);
+     CHECK(buffers[bin2Num]->at(25)==1);
+     CHECK(buffers[bin2Num]->at(0) == 1);
+ }
+@@ -210,7 +209,8 @@
+     bool hasbin = p.parse("452-/nsp,101[\"bin_event\",[{\"_placeholder\":true,\"num\":1},{\"_placeholder\":true,\"num\":0},\"text\"]]");
+     CHECK(hasbin);
+     char buf[100];
+-    memset(buf,0,100);
++    buf[0] = packet::frame_message;
++    memset(buf + 1,0,99);
+ 
+     std::string bufstr(buf,100);
+     std::string bufstr2(buf,50);
